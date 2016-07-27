@@ -62,7 +62,7 @@ exports.execute = (configs, callback) => {
                         return fs.writeFile(path.join(dirPath, 'data.zip'), templateXLSX, callback);
                     },
                     (callback) => {
-                        let styleSheet = configs.find((config) => config.stylesXmlFile != null);
+                        let styleSheet = configs.find((config) => config.stylesXmlFile != null).stylesXmlFile;
                         if (styleSheet != null) {
                             return fs.readFile(styleSheet, 'utf8', (err, styles) => {
                                 if (err) {
