@@ -61,7 +61,7 @@ module.exports = (path, config, shareStrings, convertedShareStrings) => {
 
             let subscribeToData = (callback) => {
                 data.on('data', addRow);
-                data.on('end', callback);
+                data.on('end', () => process.nextTick(callback));
             };
 
             let i = -1;
