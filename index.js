@@ -29,7 +29,7 @@ exports.execute = (configs, callback) => {
     let p, files = [], styleIndex, k = 0, cn = 1, dirPath, shareStrings = [], convertedShareStrings = '', sheet, sheetPos = 0;
 
     if (!Array.isArray(configs)) {
-        configs = [configs, configs];
+        configs = [configs];
     }
 
     let makeTemporaryFolder = (callback) => {
