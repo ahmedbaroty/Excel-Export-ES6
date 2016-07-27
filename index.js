@@ -28,6 +28,8 @@ const relBack = '<Relationship Id="rId101" Type="http://schemas.openxmlformats.o
 exports.execute = (configs, callback) => {
     let p, files = [], styleIndex, k = 0, cn = 1, dirPath, shareStrings = [], convertedShareStrings = '', sheet, sheetPos = 0;
 
+    let zip = new JSZip();
+
     if (!Array.isArray(configs)) {
         configs = [configs];
     }
@@ -42,46 +44,16 @@ exports.execute = (configs, callback) => {
         });
     };
 
-    let makeTemporaryFolderStructure = (callback) => {
-        async.waterfall([
-            (callback) => {
-                return fs.mkdir(path.join(dirPath, 'xl'), callback);
-            },
-            (callback) => {
-                return fs.mkdir(path.join(dirPath, 'xl', 'worksheets'), callback)
-            },
-            (callback) => {
-                return fs.mkdir(path.join(dirPath, 'xl', '_rels'), callback)
-            },
-            (callback) => {
-                return fs.mkdir(path.join(dirPath, '_rels'), callback)
-            },
-            (callback) => {
-                return async.parallel([
-                    (callback) => {
-                        return fs.writeFile(path.join(dirPath, 'data.zip'), templateXLSX, callback);
-                    },
-                    (callback) => {
-                        let configWithStylesheet = configs.find((config) => config.stylesXmlFile != null);
-                        if (configWithStylesheet != null) {
-                            return fs.readFile(configWithStylesheet.stylesXmlFile, 'utf8', (err, styles) => {
-                                if (err) {
-                                    return callback(err);
-                                }
-                                let p = path.join(dirPath, 'xl', 'styles.xml');
-                                files.push(p);
-                                return fs.writeFile(p, styles, callback);
-                            });
+    let addStyleSheet = (callback) => {
+        let configWithStylesheet = configs.find((config) => config.stylesXmlFile != null);
+        if (configWithStylesheet != null) {
+            let readStream = fs.createReadStream(configWithStylesheet.stylesXmlFile, {
+                encoding: 'utf8'
+            });
 
-                        } else {
-                            callback();
-                        }
-                    }
-                ], (err) => {
-                    return callback(err);
-                });
-            }
-        ], callback);
+            zip.file('xl/styles.xml', readStream);
+        }
+        callback();
     };
 
     let generateRel = (callback) => {
@@ -95,17 +67,17 @@ exports.execute = (configs, callback) => {
 
         return async.parallel([
             (callback) => {
-                let p = path.join(dirPath, 'xl', '_rels', 'workbook.xml.rels');
-                files.push(p);
-                return fs.writeFile(p, workbook, callback);
+                zip.file('xl/_rels/workbook.xml.rels', workbook);
+                callback();
             },
             (callback) => {
-                let p = path.join(dirPath, '_rels', '.rels');
-                files.push(p);
-                return fs.writeFile(p, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                let rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             			  + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             			  + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
-            			  + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>', callback);
+            			  + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+
+                zip.file('_rels/.rels', rels, workbook);
+                callback();
             }
         ], () => {
             callback();
@@ -120,9 +92,9 @@ exports.execute = (configs, callback) => {
     		workbook += '<x:sheet name="' + name + '" sheetId="' + (i + 2) +'" r:id="rId' + (i + 2) + '"/>';
     	});
         workbook += sheetsBack;
-        let p = path.join(dirPath, 'xl', 'workbook.xml');
-        files.push(p);
-    	return fs.writeFile(p, workbook, callback);
+
+        zip.file('xl/workbook.xml', workbook);
+        callback();
     }
 
     let writeSharedString = (callback) => {
@@ -131,9 +103,9 @@ exports.execute = (configs, callback) => {
         }
 
         sharedStringsFront = sharedStringsFront.replace(/\$count/g, shareStrings.length);
-        p = path.join(dirPath, 'xl', 'sharedStrings.xml');
-        files.push(p);
-        return fs.writeFile(p, sharedStringsFront + convertedShareStrings + sharedStringsBack, callback);
+
+        zip.file('xl/sharedStrings.xml', sharedStringsFront + convertedShareStrings + sharedStringsBack);
+        callback();
     };
 
     let zipFile = (err) => {
@@ -141,25 +113,22 @@ exports.execute = (configs, callback) => {
             return callback(err);
         }
 
-        fs.readFile(path.join(dirPath, 'data.zip'), (err, prev) => {
-            let zip = new JSZip();
+        files.forEach((file) => {
+            let fileName = path.relative(dirPath, file);
+            zip.file('xl/worksheets/' + fileName, fs.createReadStream(file));
+        });
 
-            files.forEach((file) => {
-                let relative = path.relative(dirPath, file);
-                zip.file(relative, fs.createReadStream(file));
+        zip.loadAsync(templateXLSX)
+            .then((zip) => {
+                zip
+                    .generateNodeStream({streamFiles:true})
+                    .pipe(fs.createWriteStream(dirPath + '.xlsx'))
+                    .on('finish', () => {
+                        temp.cleanup();
+                        return callback(null, dirPath + '.xlsx')
+                    });
             });
 
-            zip.loadAsync(prev)
-                .then((zip) => {
-                    zip
-                        .generateNodeStream({streamFiles:true})
-                        .pipe(fs.createWriteStream(dirPath + '.xlsx'))
-                        .on('finish', () => {
-                            temp.cleanup();
-                            return callback(null, dirPath + '.xlsx')
-                        });
-                });
-        });
     };
 
     let finalizeZip = () => {
@@ -172,7 +141,7 @@ exports.execute = (configs, callback) => {
 
     let writeSheets = (callback) => {
         async.eachOfSeries(configs, (config, i, callback) => {
-            let p = path.join(dirPath, 'xl', 'worksheets', 'sheet' + (i + 1) + '.xml');
+            let p = path.join(dirPath, 'sheet' + (i + 1) + '.xml');
             files.push(p);
             Sheet(p, config, shareStrings, convertedShareStrings)
                 .then((ammendedSharedStrings) => {
@@ -185,7 +154,7 @@ exports.execute = (configs, callback) => {
 
     async.waterfall([
         makeTemporaryFolder,
-        makeTemporaryFolderStructure,
+        addStyleSheet,
         generateRel,
         writeSheets,
         generateWorkbook], (err) => {
