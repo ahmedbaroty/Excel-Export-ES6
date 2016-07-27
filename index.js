@@ -152,13 +152,17 @@ exports.execute = (configs, callback) => {
         }, callback);
     };
 
-    async.waterfall([
-        makeTemporaryFolder,
+    async.parallel([
         addStyleSheet,
         generateRel,
-        writeSheets,
-        generateWorkbook], (err) => {
-            finalizeZip();
-        });
+        generateWorkbook,
+        (callback) => {
+            async.waterfall([
+                makeTemporaryFolder,
+                writeSheets
+            ], callback);
+        }
+    ], finalizeZip);
+
 
 };
