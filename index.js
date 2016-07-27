@@ -116,7 +116,8 @@ exports.execute = (configs, callback) => {
     let generateWorkbook = (callback) => {
         let workbook = sheetsFront;
         configs.forEach( (config, i) => {
-    		workbook += '<x:sheet name="Sheet ' + (i + 1) + '" sheetId="' + (i + 2) +'" r:id="rId' + (i + 2) + '"/>';
+            let name = config.name == null ? 'Sheet ' + (i + 1) : config.name;
+    		workbook += '<x:sheet name="' + name + '" sheetId="' + (i + 2) +'" r:id="rId' + (i + 2) + '"/>';
     	});
         workbook += sheetsBack;
         let p = path.join(dirPath, 'xl', 'workbook.xml');
