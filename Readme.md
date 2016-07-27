@@ -3,14 +3,14 @@ A simple and fast node.js module for exporting data set to Excel xlsx file. Now 
 
 ## Updates ##
 
-#### Multisheet Support ####
-#### Consumes Less Memory ####
-#### ES6 ####
-#### Easier to read and maintain ####
-#### Accepts Array of Arrays (rows) or Stream of Array (row) ####
-#### updated dependencies ####
-#### Returns path of file instead of a buffer ####
-#### Update test ####
+- Multisheet Support
+- Consumes Less Memory
+- ES6
+- Easier to read and maintain
+- Accepts Array of Arrays (rows) or Stream of Array (row)
+- updated dependencies
+- Returns path of file instead of a buffer
+- Update test
 
 ## Just how important are these changes? ##
 The initial module allowed us to write no more than 100,000 rows, after the rewrite and using streams we are able to write more than excel can handle.
